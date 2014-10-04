@@ -10,7 +10,7 @@ app.logger.info("debug=%s", app.debug)
 def hello():
     return "Hello World 2"
 
-@app.route("/webhook", methods=['GET'])
+@app.route("/webhook", methods=['GET', 'POST'])
 def webhook():
     # return request.args.get('challenge') or "" # verify
     # Make sure this is a valid request from Dropbox
