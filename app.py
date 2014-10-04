@@ -18,8 +18,10 @@ def webhook():
         signature = request.headers.get('X-Dropbox-Signature')
         if signature != hmac.new(APP_SECRET, request.data, sha256).hexdigest():
             abort(403)
-    data = json.loads(request.data)
-    app.logger.info(data)
+    app.logger.info("data=%s", request.data)
+    if request.data:
+        data = json.loads(request.data)
+        app.logger.info(data)
     # for uid in data['delta']['users']:
         # We need to respond quickly to the webhook request, so we do the
         # actual work in a separate thread. For more robustness, it's a
