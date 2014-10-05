@@ -1,8 +1,8 @@
 import hmac, threading, os, logging, json
 from hashlib import sha256
-from flask import Flask, request
+import flask
 
-app = Flask(__name__)
+app = flask.Flask(__name__)
 app.debug = bool(os.environ.get('DEBUG', False))
 app.logger.info("debug=%s", app.debug)
 
@@ -13,23 +13,26 @@ def hello():
 
 @app.route("/register", methods=['POST'])
 def register():
-    app.logger.info("data=%s", request.data)
-    if request.data:
-        data = json.loads(request.data)
-    return ""
+    app.logger.info("data=%s", flask.request.data)
+    if flask.request.data:
+        data = json.loads(flask.request.data)
+    resp = flask.make_response("OK", 200)
+    if app.debug:
+        resp.headers.extend({'Access-Control-Allow-Origin': '*'})
+    return resp
 
 
 @app.route("/webhook", methods=['GET', 'POST'])
 def webhook():
-    # return request.args.get('challenge') or "" # verify
+    # return flask.request.args.get('challenge') or "" # verify
     # Make sure this is a valid request from Dropbox
     if not app.debug:
-        signature = request.headers.get('X-Dropbox-Signature')
-        if signature != hmac.new(APP_SECRET, request.data, sha256).hexdigest():
+        signature = flask.request.headers.get('X-Dropbox-Signature')
+        if signature != hmac.new(APP_SECRET, flask.request.data, sha256).hexdigest():
             abort(403)
-    app.logger.info("data=%s", request.data)
-    if request.data:
-        data = json.loads(request.data)
+    app.logger.info("data=%s", flask.request.data)
+    if flask.request.data:
+        data = json.loads(flask.request.data)
         # app.logger.info(data)
     # for uid in data['delta']['users']:
         # We need to respond quickly to the webhook request, so we do the
