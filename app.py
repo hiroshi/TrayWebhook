@@ -8,7 +8,16 @@ app.logger.info("debug=%s", app.debug)
 
 @app.route("/")
 def hello():
-    return "Hello World 2"
+    return "It may works."
+
+
+@app.route("/register", methods=['POST'])
+def register():
+    app.logger.info("data=%s", request.data)
+    if request.data:
+        data = json.loads(request.data)
+    return ""
+
 
 @app.route("/webhook", methods=['GET', 'POST'])
 def webhook():
@@ -21,11 +30,11 @@ def webhook():
     app.logger.info("data=%s", request.data)
     if request.data:
         data = json.loads(request.data)
-        app.logger.info(data)
+        # app.logger.info(data)
     # for uid in data['delta']['users']:
         # We need to respond quickly to the webhook request, so we do the
         # actual work in a separate thread. For more robustness, it's a
         # good idea to add the work to a reliable queue and process the queue
         # in a worker process.
         # threading.Thread(target=process_user, args=(uid,)).start()
-    return ''
+    return ""
