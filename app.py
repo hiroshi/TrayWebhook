@@ -1,10 +1,37 @@
 import hmac, threading, os, logging, json
 from hashlib import sha256
 import flask
+from flask.ext.sqlalchemy import SQLAlchemy
 
 app = flask.Flask(__name__)
 app.debug = bool(os.environ.get('DEBUG', False))
 app.logger.info("debug=%s", app.debug)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
+if app.debug:
+    app.config['SQLALCHEMY_ECHO'] = True
+db = SQLAlchemy(app)
+
+
+class Token(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.Integer)
+    kind = db.Column(db.String(20))
+    token = db.Column(db.String(80), unique=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    def __init__(self, uid, kind, token):
+        self.uid = uid
+        self.kind = kind
+        self.token = token
+
+    def __repr__(self):
+        return '<Token uid=%r kind=%r token=%r>' % (self.uid, self.kind, self.token)
+
+    @classmethod
+    def insert_unique(cls, **kwargs):
+        if not cls.query.filter_by(**kwargs).first():
+            db.session.add(cls(**kwargs))
+
 
 @app.route("/")
 def hello():
@@ -27,7 +54,11 @@ def preflight():
 def register():
     app.logger.info("data=%s", flask.request.data)
     if flask.request.data:
-        data = json.loads(flask.request.data)
+        val = json.loads(flask.request.data)
+        Token.insert_unique(uid=val['uid'], kind='AccessToken', token=val['accessToken'])
+        Token.insert_unique(uid=val['uid'], kind='DeviceToken', token=val['deviceToken'])
+        db.session.commit()
+
     resp = flask.make_response("OK", 200)
     if app.debug:
         resp.headers.extend({'Access-Control-Allow-Origin': '*'})
@@ -44,7 +75,7 @@ def webhook():
             abort(403)
     app.logger.info("data=%s", flask.request.data)
     if flask.request.data:
-        data = json.loads(flask.request.data)
+        val = json.loads(flask.request.data)
         # app.logger.info(data)
     # for uid in data['delta']['users']:
         # We need to respond quickly to the webhook request, so we do the
