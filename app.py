@@ -2,6 +2,12 @@ import hmac, threading, os, logging, json
 from hashlib import sha256
 import flask
 from flask.ext.sqlalchemy import SQLAlchemy
+import requests
+#import datastore
+from dropbox.client import DropboxClient
+from dropbox.datastore import _DatastoreOperations
+
+import models
 
 app = flask.Flask(__name__)
 app.debug = bool(os.environ.get('DEBUG', False))
@@ -9,29 +15,9 @@ app.logger.info("debug=%s", app.debug)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
 if app.debug:
     app.config['SQLALCHEMY_ECHO'] = True
-db = SQLAlchemy(app)
-
-
-class Token(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    uid = db.Column(db.Integer)
-    kind = db.Column(db.String(20))
-    token = db.Column(db.String(80), unique=True)
-    created_at = db.Column(db.DateTime, default=db.func.now())
-
-    def __init__(self, uid, kind, token):
-        self.uid = uid
-        self.kind = kind
-        self.token = token
-
-    def __repr__(self):
-        return '<Token uid=%r kind=%r token=%r>' % (self.uid, self.kind, self.token)
-
-    @classmethod
-    def insert_unique(cls, **kwargs):
-        if not cls.query.filter_by(**kwargs).first():
-            db.session.add(cls(**kwargs))
-
+# db = SQLAlchemy(app)
+models.db.app = app
+models.db.init_app(app)
 
 @app.route("/")
 def hello():
@@ -39,7 +25,7 @@ def hello():
 
 
 @app.route("/register", methods=['OPTIONS'])
-def preflight():
+def register_cors_preflight():
     resp = flask.make_response("OK", 200)
     if app.debug:
         resp.headers.extend({
@@ -52,12 +38,13 @@ def preflight():
 
 @app.route("/register", methods=['POST'])
 def register():
+    # FIXME: Make sure this is a valid request by accessing Dropbox API with accessToken
     app.logger.info("data=%s", flask.request.data)
     if flask.request.data:
         val = json.loads(flask.request.data)
-        Token.insert_unique(uid=val['uid'], kind='AccessToken', token=val['accessToken'])
-        Token.insert_unique(uid=val['uid'], kind='DeviceToken', token=val['deviceToken'])
-        db.session.commit()
+        models.Token.insert_unique(uid=val['uid'], kind='AccessToken', token=val['accessToken'])
+        models.Token.insert_unique(uid=val['uid'], kind='DeviceToken', token=val['deviceToken'])
+        models.db.session.commit()
 
     resp = flask.make_response("OK", 200)
     if app.debug:
@@ -65,19 +52,54 @@ def register():
     return resp
 
 
-@app.route("/webhook", methods=['GET', 'POST'])
+@app.route("/webhook", methods=['GET'])
+def webhook_challenge():
+    return flask.request.args.get('challenge') or "" # verify
+
+@app.route("/webhook", methods=['POST'])
 def webhook():
-    # return flask.request.args.get('challenge') or "" # verify
     # Make sure this is a valid request from Dropbox
-    if not app.debug:
+    if not bool(os.environ.get('SKIP_VERIFY', 0)):
         signature = flask.request.headers.get('X-Dropbox-Signature')
-        if signature != hmac.new(APP_SECRET, flask.request.data, sha256).hexdigest():
+        if signature != hmac.new(os.environ['DROPBOX_APP_SECRET'], flask.request.data, sha256).hexdigest():
             abort(403)
     app.logger.info("data=%s", flask.request.data)
     if flask.request.data:
         val = json.loads(flask.request.data)
         # app.logger.info(data)
-    # for uid in data['delta']['users']:
+        if 'datastore_delta' in val:
+            for dsupdate in val['datastore_delta']:
+                uid = dsupdate['updater']
+                # Get deltas for the datastore
+                # datastore.process(uid=uid, handle=change['handle'])
+                # Get content from datastore 
+                access_token = models.Token.get_token_value(uid=uid, kind='AccessToken')
+                if access_token:
+                    client = DropboxClient(access_token)
+                    dsops = _DatastoreOperations(client)
+                    dsinfo = models.DatastoreInfo.query.filter_by(handle=dsupdate['handle']).first()
+                    rev = dsinfo.last_process_rev if dsinfo else 0
+                    deltas = dsops.get_deltas(dsupdate['handle'], rev + 1)
+                    if 'deltas' in deltas:
+                        for delta in deltas['deltas']:
+                            for t, tid, rid, data in delta['changes']:
+                                if tid == 'items':
+                                    app.logger.info(data['text'])
+                                    # PUSH notification
+                                    device_token = models.Token.get_token_value(uid=uid, kind='DeviceToken')
+                                    if device_token:
+                                        app.logger.info("deviceTokne: %s", device_token)
+                                        payload = {
+                                            'auth_token': os.environ['ZEROPUSH_AUTH_TOKEN'],
+                                            'device_tokens[]': [device_token],
+                                            'title': 'Item added',
+                                            'body': data['text']
+                                        }
+                                        r = requests.post("https://api.zeropush.com/notify", params=payload)
+                            rev = delta['rev']
+                    models.DatastoreInfo.upsert(handle=dsupdate['handle'], dsid=dsupdate['dsid'], last_process_rev=rev)
+                    models.db.session.commit()
+
         # We need to respond quickly to the webhook request, so we do the
         # actual work in a separate thread. For more robustness, it's a
         # good idea to add the work to a reliable queue and process the queue

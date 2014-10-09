@@ -1,10 +1,12 @@
+TrayPythonWebhook
+=================
 
-
-
-## local development
+Local development
+-----------------
 
     $ virutalenv venv
     $ . venv/bin/activate
+
 
 When you leave virtualenv:
 
@@ -30,6 +32,16 @@ If you want some debug logging.
     $ env `cat .env` python
     >>> from app import db
     >>> db.create_all()
+
+
+### Start development server
+
+    $ foreman start web
+
+
+### Test /webhook
+
+    $ curl -v -H "Content-Type: application/json" -d '{"datastore_delta":[{"owner":348426, "dsid":"default"}]}' http://localhost:5000/webhook
 
 
 ### Adding another python package
