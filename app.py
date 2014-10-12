@@ -5,7 +5,7 @@ from flask.ext.sqlalchemy import SQLAlchemy
 import requests
 #import datastore
 from dropbox.client import DropboxClient
-from dropbox.datastore import _DatastoreOperations
+from dropbox.datastore import _DatastoreOperations, DatastoreNotFoundError
 
 import models
 
@@ -62,7 +62,7 @@ def webhook():
     if not bool(os.environ.get('SKIP_VERIFY', 0)):
         signature = flask.request.headers.get('X-Dropbox-Signature')
         if signature != hmac.new(os.environ['DROPBOX_APP_SECRET'], flask.request.data, sha256).hexdigest():
-            flask.abort(403)
+            flask.abort(403, "X-Dropbox-Signature not match")
     app.logger.info("data=%s", flask.request.data)
     if flask.request.data:
         val = json.loads(flask.request.data)
@@ -79,7 +79,12 @@ def webhook():
                     dsops = _DatastoreOperations(client)
                     dsinfo = models.DatastoreInfo.query.filter_by(handle=dsupdate['handle']).first()
                     rev = dsinfo.last_process_rev if dsinfo else 0
-                    deltas = dsops.get_deltas(dsupdate['handle'], rev + 1)
+                    try:
+                        deltas = dsops.get_deltas(dsupdate['handle'], rev + 1)
+                    except DatastoreNotFoundError, e:
+                        app.logger.exception(e)
+                        app.logger.error("Did you change DROPBOX_APP_SECRET after storing 'AccessToken'?")
+                        continue
                     if 'deltas' in deltas:
                         for delta in deltas['deltas']:
                             for t, tid, rid, data in delta['changes']:
