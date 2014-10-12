@@ -62,7 +62,7 @@ def webhook():
     if not bool(os.environ.get('SKIP_VERIFY', 0)):
         signature = flask.request.headers.get('X-Dropbox-Signature')
         if signature != hmac.new(os.environ['DROPBOX_APP_SECRET'], flask.request.data, sha256).hexdigest():
-            abort(403)
+            flask.abort(403)
     app.logger.info("data=%s", flask.request.data)
     if flask.request.data:
         val = json.loads(flask.request.data)
