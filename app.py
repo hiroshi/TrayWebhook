@@ -21,17 +21,16 @@ models.db.init_app(app)
 
 @app.route("/")
 def hello():
-    return "It may works."
+    return "It may work..."
 
 
 @app.route("/register", methods=['OPTIONS'])
 def register_cors_preflight():
     resp = flask.make_response("OK", 200)
-    if app.debug:
-        resp.headers.extend({
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'X-PINGOTHER, Content-Type',
-        })
+    resp.headers.extend({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'X-PINGOTHER, Content-Type',
+    })
     app.logger.info("preflight")
     return resp
 
