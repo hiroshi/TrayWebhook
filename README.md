@@ -3,35 +3,14 @@ TrayPythonWebhook
 
 
 
-Local development setup
------------------------
+Local development
+-----------------
 
-    $ virutalenv venv
-    $ . venv/bin/activate
-    $ pip install -r requirements.txt
+If you didn't do "Local development setup", do it.
 
-When you leave virtualenv:
+### Enter virtualenv
 
-    $ deactivate
-
-### Create local PostgreSQL database
-
-    $ createdb tray
-
-### Create .env
-
-    DATABASE_URL=postgres://localhost:5432/tray
-    ZEROPUSH_AUTH_TOKEN=<Your Zeropush Auth Token>
-    SKIP_VERIFY=1
-
-- Don't contains spaces around '=' (For env command compatibility.)
-
-
-### Initialize database
-
-    $ env `cat .env` python
-    >>> from app import models
-    >>> models.db.create_all()
+    $ source venv/bin/activate
 
 
 ### Start development server
@@ -41,16 +20,53 @@ When you leave virtualenv:
 
 ### Test /webhook
 
+Before calling the webhook, you need to regiter device tokens.
+- For Safari PUSH notifications, see [Tray web app](https://github.com/hiroshi/tray)
+- For iOS PUSH notifications, see [Tray iOS app](https://github.com/hiroshi/TrayiOS)
+
 Example:
 
     $ curl -v -H "Content-Type: application/json" -d '{"datastore_delta": [{"updater": 348426, "dsid": "default", "handle": "R5uT1VDSI8lz3LoQYjv30IgJ9fyEDW", "change_type": "update", "owner": 348426}]}' http://localhost:5000/webhook
 
-You may see exact data in `heroku logs -t`.
 
-### Adding another python package
 
-    $ pip install a_package
-    $ pip freeze > requirements.txt
+
+
+Local development setup
+-----------------------
+
+### Create local PostgreSQL database
+
+Install PostgreSQL from http://postgresapp.com.
+Set PATH in your .bashrc, .zshrc or whatever you use.
+
+    PATH=/Applications/Postgres.app/Contents/Versions/9.3/bin:$PATH
+
+It is needed before `pip install -r requirements.txt` becase `psycopg2` require `pg_config`.
+
+    $ createdb tray
+
+
+## python environment
+
+    $ virutalenv venv
+    $ source venv/bin/activate
+    $ pip install -r requirements.txt
+
+
+### Create .env
+
+    DATABASE_URL=postgres://localhost:5432/tray
+    ZEROPUSH_AUTH_TOKEN=<Your Zeropush Auth Token>
+    SKIP_VERIFY=1
+    DEBUG=1
+
+
+### Initialize database
+
+    $ dotenv python
+    >>> from app import models
+    >>> models.db.create_all()
 
 
 Heroku setup
@@ -65,10 +81,19 @@ Heroku setup
     >>> models.db.create_all()
 
 
+Misc
+----
+
+### Adding another python package
+
+    (venv)$ pip install a_package
+    (venv)$ pip freeze > requirements.txt
+
+
 How it works
 ------------
 
 - Open web app with Safari (Mavericks or later) and login via Dropbox.
--- It will POST /register so that Dropbox access token and Safari device token are stored.
+  - It will POST /register so that Dropbox access token and Safari device token are stored.
 - Add item from the iOS App.
--- /webhook is called then send PUSH notification to the Safari.
+  - /webhook is called then send PUSH notification to the Safari.
