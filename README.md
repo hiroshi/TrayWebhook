@@ -57,7 +57,8 @@ It is needed before `pip install -r requirements.txt` becase `psycopg2` require 
 ### Create .env
 
     DATABASE_URL=postgres://localhost:5432/tray
-    ZEROPUSH_AUTH_TOKEN=<Your Zeropush Auth Token>
+    ZEROPUSH_SAFARI_AUTH_TOKEN=<Your Zeropush Safari Auth Token>
+    ZEROPUSH_IOS_AUTH_TOKEN=<Your Zeropush iOS Auth Token>
     SKIP_VERIFY=1
     DEBUG=1
 

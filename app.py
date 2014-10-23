@@ -5,7 +5,7 @@ from flask.ext.sqlalchemy import SQLAlchemy
 import requests
 #import datastore
 from dropbox.client import DropboxClient
-from dropbox.datastore import _DatastoreOperations, DatastoreNotFoundError
+from dropbox.datastore import _DatastoreOperations, DatastoreNotFoundError, DatastoreManager
 
 import models
 
@@ -93,17 +93,33 @@ def webhook():
                             for t, tid, rid, data in delta['changes']:
                                 if tid == 'items':
                                     app.logger.info(data['text'])
-                                    # PUSH notification
+                                    # Safari PUSH notification
                                     device_token = models.Token.get_token_value(uid=uid, kind='DeviceToken')
                                     if device_token:
-                                        app.logger.info("deviceTokne: %s", device_token)
+                                        app.logger.info("deviceToken: %s", device_token)
                                         payload = {
-                                            'auth_token': os.environ['ZEROPUSH_AUTH_TOKEN'],
+                                            'auth_token': os.environ['ZEROPUSH_SAFARI_AUTH_TOKEN'],
                                             'device_tokens[]': [device_token],
                                             'title': 'Item added',
                                             'body': data['text']
                                         }
-                                        r = requests.post("https://api.zeropush.com/notify", params=payload)
+                                        res = requests.post("https://api.zeropush.com/notify", params=payload)
+                                        app.logger.info(res)
+                                    # iOS PUSH notification
+                                    manager = DatastoreManager(client)
+                                    datastore = manager.open_default_datastore()
+                                    device_token_table = datastore.get_table('deviceTokens')
+                                    device_tokens = [r.get_id() for r in device_token_table.query()]
+                                    app.logger.info("deviceTokens: %s", device_tokens)
+                                    if device_tokens:
+                                        payload = {
+                                            'auth_token': os.environ['ZEROPUSH_IOS_SERVER_TOKEN'],
+                                            'device_tokens[]': device_tokens,
+                                            'alert': "Item Added:\n" + data['text'],
+                                        }
+                                        app.logger.info(payload)
+                                        res = requests.post("https://api.zeropush.com/notify", params=payload)
+                                        app.logger.info(res)
                             rev = delta['rev']
                     models.DatastoreInfo.upsert(handle=dsupdate['handle'], dsid=dsupdate['dsid'], last_process_rev=rev)
                     models.db.session.commit()
