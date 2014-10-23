@@ -77,15 +77,19 @@ def webhook():
                     client = DropboxClient(access_token)
                     dsops = _DatastoreOperations(client)
                     dsinfo = models.DatastoreInfo.query.filter_by(handle=dsupdate['handle']).first()
-                    rev = dsinfo.last_process_rev if dsinfo else 0
+                    rev = dsinfo.last_process_rev if dsinfo else -1
                     try:
-                        deltas = dsops.get_deltas(dsupdate['handle'], rev + 1)
+                        resp = dsops.get_deltas(dsupdate['handle'], rev + 1)
                     except DatastoreNotFoundError, e:
                         app.logger.exception(e)
                         app.logger.error("Did you change DROPBOX_APP_SECRET after storing 'AccessToken'?")
                         continue
-                    if 'deltas' in deltas:
-                        for delta in deltas['deltas']:
+                    if 'deltas' in resp:
+                        deltas = resp['deltas']
+                        # Use only last rev for first time
+                        if rev == -1:
+                            deltas = deltas[-1:]
+                        for delta in deltas:
                             for t, tid, rid, data in delta['changes']:
                                 if tid == 'items':
                                     app.logger.info(data['text'])
