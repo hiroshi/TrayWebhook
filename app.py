@@ -90,7 +90,7 @@ def webhook():
                         if rev == -1:
                             deltas = deltas[-1:]
                         for delta in deltas:
-                            for t, tid, rid, data in delta['changes']:
+                            for t, tid, rid, data in [x for x in delta['changes'] if x[0] == 'I']:
                                 if tid == 'items':
                                     app.logger.info(data['text'])
                                     # Safari PUSH notification
